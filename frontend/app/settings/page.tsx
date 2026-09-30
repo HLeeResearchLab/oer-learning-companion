@@ -85,6 +85,10 @@ function applyUserToForm(user: any) {
 
   setNickname(user.nickname || "");
   setFavoriteQuote(user.favoriteQuote || "");
+  // The quote inputs below are bound to `customQuote`/`selectedQuote`, not
+  // `favoriteQuote` — hydrating only `favoriteQuote` left the visible fields
+  // blank on every reload even though the value was saved correctly server-side.
+  setCustomQuote(user.favoriteQuote || "");
   setSelectedAvatar(getAvatarIdFromUrl(user.avatarUrl));
 
   setSelectedTrackId(user.track.name);
