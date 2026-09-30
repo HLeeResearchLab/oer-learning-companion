@@ -2,6 +2,10 @@
 
 import { usePopup } from "./popup-provider";
 import React, { createContext, useContext, useEffect, useMemo, useRef, useState } from "react";
+
+// Tokens needed to unlock a mini-game (matches GAME_COST/requiredTokens in
+// ticTacToe/page.tsx and TicTacToe.tsx).
+const GAME_UNLOCK_TOKENS = 4;
 type ActiveSession = {
   sessionId: number;
   status: "ACTIVE" | "PAUSED";
@@ -558,11 +562,17 @@ if (typeof window !== "undefined") {
   setSessionClockKey(null);
   await refreshSession();
     
+    // The backend previously didn't return a tokensAvailable field at all on
+    // completion, so this was always undefined and the game-unlocked
+    // celebration below could never fire. Now that sessionController's
+    // completeSession includes it, read it and compare with >= (not === 4)
+    // so it still fires for sessions that earn more than the minimum.
     const newTokenCount =
-  data?.session?.tokensAvailable ??
-  data?.tokensAvailable ??
-  data?.user?.tokenBalance ??
-  data?.tokenBalance;
+      data?.session?.tokensAvailable ??
+      data?.rewards?.tokensAvailable ??
+      data?.tokensAvailable ??
+      data?.user?.tokenBalance ??
+      data?.tokenBalance;
 showPopup({
   type: "sessionCelebration",
   gifSrc: "/assets/popups/confetti.gif",
@@ -571,7 +581,7 @@ showPopup({
   dimBackground: false,
 });
 
-if (newTokenCount === 4) {
+if (typeof newTokenCount === "number" && newTokenCount >= GAME_UNLOCK_TOKENS) {
   window.setTimeout(() => {
     showPopup({
       type: "achievement",
