@@ -54,7 +54,15 @@ export default function Home() {
   const [quote, setQuote] = useState("No favorite quote yet.");
   const [loadingProfile, setLoadingProfile] = useState(true);
 
-  const { startSession, sessionActionLoading } = useSession();
+  const {
+    startSession,
+    sessionActionLoading,
+    activeSession,
+    liveStudySeconds,
+    pauseSession,
+    resumeSession,
+    cancelSession,
+  } = useSession();
   const renderCount = useRef(0);
   renderCount.current += 1;
 
@@ -140,6 +148,24 @@ export default function Home() {
     const [hours, minutes] = parts;
     return hours * 60 + minutes;
   }
+
+  // Same formatting the header timer uses, so the dashboard's countdown
+  // matches what's shown up top.
+  function formatElapsedSeconds(totalSeconds: number) {
+    const safe = Math.max(0, Math.floor(totalSeconds));
+    const hours = Math.floor(safe / 3600);
+    const minutes = Math.floor((safe % 3600) / 60);
+    const seconds = safe % 60;
+
+    return `${hours}:${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`;
+  }
+
+  const sessionGoalSeconds = activeSession?.sessionGoalMinutes
+    ? activeSession.sessionGoalMinutes * 60
+    : 0;
+  const remainingSeconds = activeSession
+    ? Math.max(0, sessionGoalSeconds - liveStudySeconds)
+    : 0;
   return (
     <div className="flex flex-col px-4 py-4 sm:px-6 lg:px-8">
       <div className="w-full">
@@ -250,81 +276,124 @@ export default function Home() {
         </div>
 
         <section className="flex flex-col items-center rounded-2xl bg-[#235937] dark:bg-[#26314a] px-4 py-6 text-center sm:px-6">
-          <p className="pb-2 text-2xl font-semibold text-white sm:text-3xl">
-            Set Today's Goal
-          </p>
+          {activeSession ? (
+            <>
+              <p className="pb-2 text-2xl font-semibold text-white sm:text-3xl">
+                Session In Progress
+              </p>
 
-          <p className="text-white">Set a session length to start.</p>
+              <p className="text-white">
+                {activeSession.status === "PAUSED"
+                  ? "Paused — resume when you're ready."
+                  : "Studying — time remaining in this session."}
+              </p>
 
-          <div className="mt-5 flex w-full max-w-xs flex-col gap-10">
-            <div className="flex flex-col gap-2 text-left">
-              <label className="font-medium text-white" htmlFor="breakSelect">
-                Select Session Duration<span className="text-[#ff0000]">*</span>
-              </label>
-              <select
-                id="breakSelect"
-                value={selectedMinutes}
-                onChange={(e) => {
-                  const newValue = e.target.value;
-                  setSelectedMinutes(newValue);
-                  setTime(newValue);
-                }}
-                className="w-full appearance-none rounded-md border border-white/40 bg-[#1f2a3a] px-4 py-3 text-lg font-semibold text-white focus:outline-none focus:ring-2 focus:ring-white/30"
-              >
-                <option value="0:10:00">10 mins</option>
-                <option value="0:15:00">15 mins</option>
-                <option value="0:20:00">20 mins</option>
-                <option value="0:30:00">30 mins</option>
-                <option value="0:40:00">40 mins</option>
-                <option value="1:00:00">60 mins</option>
-                <option value="1:20:00">80 mins</option>
-                <option value="1:40:00">100 mins</option>
-                <option value="2:00:00">120 mins</option>
-              </select>
-            </div>
-            <div className="flex flex-col gap-2 text-left">
-              <label
-                className="font-medium text-white"
-                htmlFor="numberOfSelect"
-              >
-                Select Number Of
-              </label>
-              <select
-                id="numberOfSelect"
-                defaultValue="breaks"
-                className="w-full appearance-none rounded-md border border-white/40 bg-[#1f2a3a] px-4 py-3 text-lg font-semibold text-white focus:outline-none focus:ring-2 focus:ring-white/30"
-              >
-                <option value="breaks">Breaks</option>
-                <option value="1">1</option>
-                <option value="2">2</option>
-                <option value="3">3</option>
-                <option value="4">4</option>
-                <option value="5">5</option>
-                <option value="6">6</option>
-                <option value="7">7</option>
-                <option value="8">8</option>
-                <option value="9">9</option>
-                <option value="10">10</option>
-              </select>
-            </div>
-          </div>
+              <div className="mt-6 inline-flex items-center justify-center rounded-full bg-[#7ED957] px-6 py-4 font-digital text-2xl font-bold tracking-widest text-[#0b1f14] shadow-inner sm:text-3xl">
+                {formatElapsedSeconds(remainingSeconds)}
+              </div>
 
-          <div className="mt-6 inline-flex items-center justify-center rounded-full bg-[#7ED957] px-6 py-4 font-digital text-2xl font-bold tracking-widest text-[#0b1f14] shadow-inner sm:text-3xl">
-            {time}
-          </div>
+              <div className="mt-6 flex w-full max-w-xs justify-center gap-3">
+                <button
+                  type="button"
+                  onClick={() =>
+                    activeSession.status === "ACTIVE"
+                      ? pauseSession()
+                      : resumeSession()
+                  }
+                  disabled={sessionActionLoading}
+                  className="w-full rounded-2xl bg-[#D0A234] px-4 py-4 text-lg font-semibold text-white sm:text-xl disabled:opacity-60"
+                >
+                  {activeSession.status === "ACTIVE" ? "Pause" : "Resume"}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => cancelSession()}
+                  disabled={sessionActionLoading}
+                  className="w-full rounded-2xl bg-[#8a2d2d] px-4 py-4 text-lg font-semibold text-white sm:text-xl disabled:opacity-60"
+                >
+                  End Session
+                </button>
+              </div>
+            </>
+          ) : (
+            <>
+              <p className="pb-2 text-2xl font-semibold text-white sm:text-3xl">
+                Set Today's Goal
+              </p>
 
-          <div className="mt-6 flex w-full justify-center">
-            <button
-              type="button"
-              onClick={async () => {
-                await startSession(durationStringToMinutes(selectedMinutes));
-              }}
-              disabled={sessionActionLoading}
-              className="w-full max-w-md rounded-2xl bg-[#D0A234] px-4 py-4 text-lg font-semibold text-white sm:text-xl disabled:opacity-60"
-            >
-              {sessionActionLoading ? "Starting..." : "Start Session"}
-            </button>
-          </div>
+              <p className="text-white">Set a session length to start.</p>
+
+              <div className="mt-5 flex w-full max-w-xs flex-col gap-10">
+                <div className="flex flex-col gap-2 text-left">
+                  <label className="font-medium text-white" htmlFor="breakSelect">
+                    Select Session Duration<span className="text-[#ff0000]">*</span>
+                  </label>
+                  <select
+                    id="breakSelect"
+                    value={selectedMinutes}
+                    onChange={(e) => {
+                      const newValue = e.target.value;
+                      setSelectedMinutes(newValue);
+                      setTime(newValue);
+                    }}
+                    className="w-full appearance-none rounded-md border border-white/40 bg-[#1f2a3a] px-4 py-3 text-lg font-semibold text-white focus:outline-none focus:ring-2 focus:ring-white/30"
+                  >
+                    <option value="0:10:00">10 mins</option>
+                    <option value="0:15:00">15 mins</option>
+                    <option value="0:20:00">20 mins</option>
+                    <option value="0:30:00">30 mins</option>
+                    <option value="0:40:00">40 mins</option>
+                    <option value="1:00:00">60 mins</option>
+                    <option value="1:20:00">80 mins</option>
+                    <option value="1:40:00">100 mins</option>
+                    <option value="2:00:00">120 mins</option>
+                  </select>
+                </div>
+                <div className="flex flex-col gap-2 text-left">
+                  <label
+                    className="font-medium text-white"
+                    htmlFor="numberOfSelect"
+                  >
+                    Select Number Of
+                  </label>
+                  <select
+                    id="numberOfSelect"
+                    defaultValue="breaks"
+                    className="w-full appearance-none rounded-md border border-white/40 bg-[#1f2a3a] px-4 py-3 text-lg font-semibold text-white focus:outline-none focus:ring-2 focus:ring-white/30"
+                  >
+                    <option value="breaks">Breaks</option>
+                    <option value="1">1</option>
+                    <option value="2">2</option>
+                    <option value="3">3</option>
+                    <option value="4">4</option>
+                    <option value="5">5</option>
+                    <option value="6">6</option>
+                    <option value="7">7</option>
+                    <option value="8">8</option>
+                    <option value="9">9</option>
+                    <option value="10">10</option>
+                  </select>
+                </div>
+              </div>
+
+              <div className="mt-6 inline-flex items-center justify-center rounded-full bg-[#7ED957] px-6 py-4 font-digital text-2xl font-bold tracking-widest text-[#0b1f14] shadow-inner sm:text-3xl">
+                {time}
+              </div>
+
+              <div className="mt-6 flex w-full justify-center">
+                <button
+                  type="button"
+                  onClick={async () => {
+                    await startSession(durationStringToMinutes(selectedMinutes));
+                  }}
+                  disabled={sessionActionLoading}
+                  className="w-full max-w-md rounded-2xl bg-[#D0A234] px-4 py-4 text-lg font-semibold text-white sm:text-xl disabled:opacity-60"
+                >
+                  {sessionActionLoading ? "Starting..." : "Start Session"}
+                </button>
+              </div>
+            </>
+          )}
         </section>
       </div>
     </div>

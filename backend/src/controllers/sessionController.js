@@ -388,6 +388,18 @@ const completeSession = async (req, res, next) => {
       return { updatedSession, updatedStats, earnedBadges };
     });
 
+    // Tokens earned/available for THIS session, so the frontend can tell
+    // whether this completion just crossed the mini-game unlock threshold
+    // (previously omitted here entirely, which meant the "game unlocked"
+    // celebration could never fire — see completeSession in session-provider.tsx).
+    const sessionTokensEarned = Math.floor(
+      (result.updatedSession.durationMinutes || 0) / MINUTES_PER_TOKEN,
+    );
+    const sessionTokensAvailable = Math.max(
+      0,
+      sessionTokensEarned - (result.updatedSession.tokensSpent || 0),
+    );
+
     res.json({
       message: "Session completed!",
       session: {
@@ -396,9 +408,13 @@ const completeSession = async (req, res, next) => {
         endTime: result.updatedSession.endTime,
         durationMinutes: result.updatedSession.durationMinutes,
         totalPausedMinutes: result.updatedSession.totalPausedMinutes,
+        tokensEarned: sessionTokensEarned,
+        tokensAvailable: sessionTokensAvailable,
       },
       rewards: {
         badgesEarned: result.earnedBadges,
+        tokensEarned: sessionTokensEarned,
+        tokensAvailable: sessionTokensAvailable,
       },
     });
   } catch (err) {
